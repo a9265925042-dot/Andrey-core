@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Andrey_core",
+  "project_id": "9d71ff30-4aeb-4d75-88fb-9dbac4746d17"
+}
