@@ -1334,6 +1334,7 @@ def main() -> int:
     p.add_argument("--csv",  type=Path,             default=Path("reports/pnl.csv"))
     p.add_argument("--md",   type=Path,             default=Path("reports/pnl.md"))
     p.add_argument("--pdf",  type=Path,             default=Path("reports/pnl.pdf"))
+    p.add_argument("--xlsx", type=Path,             default=Path("reports/pnl.xlsx"))
     args = p.parse_args()
 
     rows = load_categorized(args.inp)
@@ -1351,6 +1352,14 @@ def main() -> int:
                charts_out_dir=args.pdf.parent / ".charts",
                analytics=analytics)
 
+    # Excel workbook (optional — only if openpyxl is installed).
+    try:
+        from excel import write_xlsx
+        write_xlsx(pnl, analytics, rows, period, args.xlsx)
+        xlsx_line = f"  → {args.xlsx}"
+    except ImportError:
+        xlsx_line = "  (skipped XLSX — install openpyxl to enable)"
+
     # Brief stdout summary
     print("=" * 60)
     print(f"P&L — {period}")
@@ -1367,6 +1376,7 @@ def main() -> int:
     print(f"  → {args.csv}")
     print(f"  → {args.md}")
     print(f"  → {args.pdf}")
+    print(xlsx_line)
     return 0
 
 

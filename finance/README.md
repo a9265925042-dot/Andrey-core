@@ -23,7 +23,7 @@ ls reports/
 | --------------- | ----------------------- | -------------------------- | ---------------------------- |
 | 1. Parse        | `finance/parse.py`      | `data/*.xlsx`              | `reports/operations.csv`     |
 | 2. Categorize   | `finance/categorize.py` | `reports/operations.csv` + `finance/rules.json` | `reports/categorized.csv` |
-| 3. Render P&L   | `finance/pnl.py`        | `reports/categorized.csv`  | `reports/pnl.{csv,md,pdf}`   |
+| 3. Render P&L   | `finance/pnl.py` + `finance/excel.py` | `reports/categorized.csv`  | `reports/pnl.{csv,md,pdf,xlsx}`   |
 
 Each script is independent and idempotent — re-running produces the same output bytes.
 
