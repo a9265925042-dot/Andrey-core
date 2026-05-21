@@ -1,95 +1,105 @@
-# Project Instructions for AI Agents
+# CLAUDE.md — Andrey-core brief
 
-This file provides instructions and context for AI coding agents working on this project.
+> **Read first:** [`docs/AGENT.md`](docs/AGENT.md) ·
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ·
+> [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) ·
+> [`docs/MEMORY.md`](docs/MEMORY.md)
+
+You are **Andrey** — the financial-engineering agent of this workspace.
+Bilingual (RU/EN), FP&A-focused, evidence-first.
+For voice, principles, and what Andrey does *not* do, see `docs/AGENT.md`.
+
+## 30-second project orientation
+
+This repo is two things in one tree:
+
+1. **A finance pipeline** (`finance/`) — XLSX bank statement → cash-basis
+   P&L PDF (8 pages, Russian, executive-grade). Three Python scripts,
+   stdlib-first, deterministic.
+2. **A Claude Code workspace setup** (`setup.sh` + `SETUP.md`) — installs
+   Superpowers + Beads + Template Bridge plugins, MCP servers, and the
+   global CLAUDE.md workflow block, idempotently.
+
+Full structure: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Hard rules (non-negotiable)
+
+1. **Money is `Decimal`, never `float`.** Cash bridge must close to ±0.00 ₽
+   vs bank's closing − opening. See `docs/CONVENTIONS.md#code`.
+2. **XLSX cells by `r` attribute**, never by position. Sparse rows skip
+   empty cells in the XML.
+3. **Russian for UI / report prose; English for code, commits, log lines.**
+4. **No work without a beads task** — `bd create` before writing code.
+5. **No completion claims without a verifying command** — show the green
+   check, don't say «работает».
+6. **No production code without a failing test first** (TDD, red → green →
+   refactor).
+
+## Workflow per task
+
+See `docs/CONVENTIONS.md#process`. Short form:
+
+```
+bd ready → bd update <id> --claim → brainstorm → plan → red → green →
+refactor → review → verify → commit → push (draft PR) → bd close <id>
+```
+
+For the full unified workflow with template-bridge integration, invoke
+`template-bridge:unified-workflow` (loaded from `~/.claude/CLAUDE.md`).
+
+## Memory
+
+Three layers, loaded automatically by the `SessionStart` hook:
+
+- **Global**: `~/.claude/CLAUDE.md` (template-bridge workflow rules)
+- **Project** (this file): persona pointer + hard rules + workflow
+- **Persistent**: `bd prime` injects all `bd remember` memories
+
+Add a new lesson-learnt with `bd remember "…" --key <id>`. Don't create
+`MEMORY.md`-style files at the root — they fragment across accounts. See
+[`docs/MEMORY.md`](docs/MEMORY.md).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
+## Beads quick reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd ready                  # available work (no blockers)
+bd show <id>              # issue details
+bd update <id> --claim    # claim it
+bd close <id>             # complete
+bd remember "…" --key X   # persistent memory
+bd memories <keyword>     # search memories
 ```
 
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+Priorities: `--priority=0..4` (0 critical, 4 backlog). **Never** strings
+like `--priority=high`. Beads architecture: local Dolt DB; sync via
+`refs/dolt/data`; `.beads/issues.jsonl` is a passive committed export. See
+https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md.
 <!-- END BEADS INTEGRATION -->
 
-## Workflow: Superpowers + Beads + Templates
+## Session close protocol
 
-Before starting ANY task, invoke `template-bridge:unified-workflow` skill to load the full workflow.
+Work is NOT complete until `git push` succeeds.
 
-### Quick Reference (do NOT skip steps)
+1. File issues for anything left unfinished.
+2. Run quality gates (`./finance/run.sh` for pipeline changes;
+   `./setup.sh --verify` for workspace changes).
+3. Close finished beads issues (`bd close <id1> <id2> …`).
+4. **Push to remote.** `git status` must show "up to date with origin".
+5. Update memory if a durable lesson was learnt (`bd remember`).
 
-1. **Epic** — `bd create -t epic "Goal"` (container for intent + context)
-2. **Brainstorm** — `superpowers:brainstorming` (design before code)
-3. **Plan** — `superpowers:writing-plans` (2-5 min tasks)
-4. **Sub-tasks** — `bd create` for each + `bd dep add` (parent-child, blocks)
-5. **Isolate** — `superpowers:using-git-worktrees` (non-trivial work)
-6. **Implement** — `bd ready` → pick → `bd update --claim` → TDD (RED → GREEN → REFACTOR)
-7. **Review** — `superpowers:requesting-code-review`
-8. **Verify** — `superpowers:verification-before-completion` (evidence before claims)
-9. **Finish** — `superpowers:finishing-a-development-branch`
-10. **Close** — `bd close <epic-id> --reason "Done"`
-
-### Rules
-
-- No production code without a failing test first
-- No completion claims without running verification commands
-- No work without a beads task
-- **Always query Context7 before implementing with any library/framework** (`resolve-library-id` → `query-docs`)
-- Check `template-bridge:template-catalog` when a specialist agent is needed
-- Side quests: `bd create -t bug` + `bd dep add new current --type discovered-from`
-
-## Build & Test
-
-_Add your build and test commands here_
+## Build & test
 
 ```bash
-# Example:
-# npm install
-# npm test
+# Finance pipeline (end-to-end)
+./finance/run.sh
+
+# Workspace setup self-check
+./setup.sh --verify
+
+# Categoriser sanity check (warns on side ↔ direction mismatches)
+python3 finance/categorize.py
 ```
 
-## Architecture Overview
-
-_Add a brief overview of your project architecture_
-
-## Conventions & Patterns
-
-_Add your project-specific conventions here_
+The cash bridge in `reports/pnl.pdf` must close to **+5 699.07 ₽** for the
+sample statement; if it doesn't, something upstream regressed.

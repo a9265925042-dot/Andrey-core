@@ -1,0 +1,47 @@
+{
+  "_comment": "Categorization rules. by_inn (exact match, highest priority) → by_keyword (regex on purpose, ordered) → default. Sides: revenue|cogs|opex|tax|other_income|internal_transfer.",
+  "self_inn": "7725816938",
+  "by_inn": {
+    "7704217370": {"side": "revenue",  "category": "revenue.marketplace_ozon", "vat_rate": 20, "name_hint": "ООО Интернет Решения (Ozon)"},
+    "3448003962": {"side": "revenue",  "category": "revenue.direct_b2b",       "vat_rate": 20, "name_hint": "АО КАУСТИК"},
+    "9728157660": {"side": "revenue",  "category": "revenue.direct_b2b",       "vat_rate": 20, "name_hint": "ООО ЭЛИОН (покупатель)"},
+    "6315232133": {"side": "other_income", "category": "other_income.insurance_reimb", "vat_rate": 0, "name_hint": "СК АСТРО-ВОЛГА"},
+
+    "230210214726": {"side": "cogs", "category": "cogs.manufacturing", "vat_rate": 0,  "name_hint": "Синельников М.Ю."},
+    "230213791552": {"side": "cogs", "category": "cogs.manufacturing", "vat_rate": 0,  "name_hint": "ИП ФИНК"},
+    "9721257369": {"side": "opex", "category": "opex.vehicle_maint",  "vat_rate": 22, "name_hint": "ООО ОВИКОМ (автозапчасти)"},
+
+    "9705101614": {"side": "opex", "category": "opex.leasing_auto",    "vat_rate": 20, "name_hint": "ПАО ЛК ЕВРОПЛАН"},
+    "7705357845": {"side": "opex", "category": "opex.leasing_auto",    "vat_rate": 22, "name_hint": "ООО АВТОЛИЗИНГ"},
+    "7705770795": {"side": "opex", "category": "opex.insurance_osago", "vat_rate": 0,  "name_hint": "ЕВРОПЛАН СЕРВИС (ОСАГО)"},
+    "772074981250": {"side": "opex", "category": "opex.transport",     "vat_rate": 0,  "name_hint": "ИП Халатник"},
+    "7826156685": {"side": "opex", "category": "opex.shipping",        "vat_rate": 20, "name_hint": "Деловые Линии"},
+    "7709501144": {"side": "opex", "category": "opex.telecom",         "vat_rate": 20, "name_hint": "Манго Телеком"},
+    "7717154350": {"side": "opex", "category": "opex.software",        "vat_rate": 20, "name_hint": "1С-Рарус"},
+    "6663003127": {"side": "opex", "category": "opex.software",        "vat_rate": 20, "name_hint": "СКБ Контур"},
+    "504109335630": {"side": "opex", "category": "opex.accounting",    "vat_rate": 0,  "name_hint": "ИП Мельникова"},
+    "502480058703": {"side": "opex", "category": "opex.rent",          "vat_rate": 0,  "name_hint": "ИП Замараев (контейнер)"},
+    "770974539080": {"side": "opex", "category": "opex.rent",          "vat_rate": 0,  "name_hint": "ИП Муханов (контейнер)"},
+    "771997056186": {"side": "opex", "category": "opex.rent",          "vat_rate": 0,  "name_hint": "ИП Зарецкий (антенна)"},
+    "7730714642": {"side": "opex", "category": "opex.utilities",       "vat_rate": 0,  "name_hint": "Коммунал"},
+    "9721194461": {"side": "opex", "category": "opex.bank_fees",       "vat_rate": 0,  "name_hint": "ООО Банк Точка"},
+    "504508311590": {"side": "opex", "category": "opex.salary",        "vat_rate": 0,  "name_hint": "Кулинич О.А."},
+    "771570635287": {"side": "opex", "category": "opex.salary",        "vat_rate": 0,  "name_hint": "Тарасова Д.В."},
+    "6155067714":   {"side": "opex", "category": "opex.training",      "vat_rate": 0,  "name_hint": "ООО ЦЕНЗОР (обучение)"},
+    "262902028033": {"side": "opex", "category": "opex.shipping",      "vat_rate": 5,  "name_hint": "ИП Плуталов (доставка)"},
+
+    "7727406020": {"side": "tax", "category": "tax.fns",     "vat_rate": 0, "name_hint": "Казначейство России (ФНС)"},
+    "7703363868": {"side": "tax", "category": "tax.social",  "vat_rate": 0, "name_hint": "ОСФР (соц. взносы)"}
+  },
+  "by_keyword": [
+    {"match": "(?i)Заработная плата|зарплат|з/п|аванс\\s*за", "side": "opex", "category": "opex.salary", "vat_rate": 0},
+    {"match": "(?i)транспортных услуг", "side": "opex", "category": "opex.transport", "vat_rate": 0},
+    {"match": "(?i)лицензионного вознаграждения|комиссия банка|обслуживание счета|комиссия за", "side": "opex", "category": "opex.bank_fees", "vat_rate": 0},
+    {"match": "(?i)\\bаренда\\b|арендная плата", "side": "opex", "category": "opex.rent", "vat_rate": 0},
+    {"match": "(?i)услуги доставки|доставка груза", "side": "opex", "category": "opex.shipping", "vat_rate": 0},
+    {"match": "(?i)НК РФ|по решению о взыскании|налог", "side": "tax", "category": "tax.fns", "vat_rate": 0},
+    {"match": "(?i)взносы.*страхование|обязательное.*пенсион", "side": "tax", "category": "tax.social", "vat_rate": 0},
+    {"match": "(?i)перевод между счетами", "side": "internal_transfer", "category": "internal_transfer", "vat_rate": 0}
+  ],
+  "default": {"side": "opex", "category": "opex.other", "vat_rate": 0}
+}
