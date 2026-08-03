@@ -179,6 +179,11 @@
     padding: 5px 9px; border-radius: 7px; white-space: nowrap;
     transform: translate(-50%, -130%);
   }
+  .tiers { display: flex; flex-direction: column; gap: 8px; }
+  .tier-row { display: flex; align-items: center; gap: 8px; }
+  .tier-row .money { flex: 1; }
+  .tier-label { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
   .target-row { display: flex; gap: 10px; }
   .target-row select { flex: 1.4; width: auto; min-width: 0; }
   .target-row .money { flex: 1; min-width: 110px; }
@@ -314,6 +319,21 @@
           <div class="seg" id="buyerSeg" role="radiogroup" aria-label="Тип покупателя">
             <button type="button" data-v="b2c" class="on" role="radio" aria-checked="true">Физлицо<span class="seg-note">обычная продажа</span></button>
             <button type="button" data-v="b2b" role="radio" aria-checked="false">Бизнес (юрлицо)<span class="seg-note">эквайринг не взимается</span></button>
+          </div>
+        </div>
+        <div id="b2bFields" hidden>
+          <div class="field">
+            <div class="field-head"><label for="b2bQty">Штук в заказе юрлица</label></div>
+            <div class="money"><input id="b2bQty" type="number" min="1" step="1" value="10"><span class="unit">шт</span></div>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Оптовые скидки (до 3 уровней)</label><span class="val" id="optVal">—</span></div>
+            <div class="tiers">
+              <div class="tier-row"><span class="tier-label">от</span><div class="money"><input id="t1q" type="number" min="2" max="1800" step="1" value="10"><span class="unit">шт</span></div><span class="tier-label">−</span><div class="money"><input id="t1d" type="number" min="0" max="95" step="1" value="5"><span class="unit">%</span></div></div>
+              <div class="tier-row"><span class="tier-label">от</span><div class="money"><input id="t2q" type="number" min="2" max="1800" step="1" value="20"><span class="unit">шт</span></div><span class="tier-label">−</span><div class="money"><input id="t2d" type="number" min="0" max="95" step="1" value="10"><span class="unit">%</span></div></div>
+              <div class="tier-row"><span class="tier-label">от</span><div class="money"><input id="t3q" type="number" min="2" max="1800" step="1" value="0"><span class="unit">шт</span></div><span class="tier-label">−</span><div class="money"><input id="t3d" type="number" min="0" max="95" step="1" value="0"><span class="unit">%</span></div></div>
+            </div>
+            <div class="hint">Скидка <b>за счёт продавца</b>: применяется к цене продавца, действует только для юрлиц и ИП. Правила WB: количество 2–1800 шт, скидка 0–95 % целыми числами, до трёх уровней. Уровень выбирается по количеству в заказе; пустой уровень (0) не участвует.</div>
           </div>
         </div>
         <div class="field" id="acqField">
@@ -487,7 +507,8 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     logFwd: $("logFwd"), logRev: $("logRev"), buyout: $("buyout"),
     drr: $("drr"), review: $("review"),
     taxMode: $("taxMode"), taxRate: $("taxRate"), vat: $("vat"), vatDeduct: $("vatDeduct"),
-    goalKind: $("goalKind"), goalVal: $("goalVal")
+    goalKind: $("goalKind"), goalVal: $("goalVal"),
+    b2bQty: $("b2bQty"), t1q: $("t1q"), t1d: $("t1d"), t2q: $("t2q"), t2d: $("t2d"), t3q: $("t3q"), t3d: $("t3d")
   };
 
   var TAX_DEFAULTS = {
@@ -520,8 +541,20 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   }
   function num(el) { var v = parseFloat(el.value); return isFinite(v) && v > 0 ? v : 0; }
 
+  // Оптовая скидка: максимальный уровень, чей порог достигнут количеством в заказе.
+  function wholesaleDiscount() {
+    if (buyer !== "b2b") return 0;
+    var n = Math.max(num(els.b2bQty), 1), best = 0;
+    [[els.t1q, els.t1d], [els.t2q, els.t2d], [els.t3q, els.t3d]].forEach(function (t) {
+      var q = num(t[0]), d = Math.min(Math.round(num(t[1])), 95);
+      if (q >= 2 && d > 0 && n >= q && d > best) best = d;
+    });
+    return best / 100;
+  }
+
   function readState() {
     return {
+      opt: wholesaleDiscount(),
       cost: num(els.cost), pack: num(els.pack), intake: num(els.intake),
       qty: Math.max(num(els.qty), 1),
       price: num(els.price), spp: num(els.spp) / 100, sppPayer: sppPayer, buyer: buyer,
@@ -537,9 +570,11 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
 
   // Юнит-экономика одной проданной единицы при цене в карточке price.
   function compute(s, price) {
-    var buyerPrice = price * (1 - s.spp);
-    // Выручка продавца: при СПП за счёт WB — полная цена карточки.
-    var revenue = s.sppPayer === "seller" ? buyerPrice : price;
+    // Оптовая скидка для бизнеса — за счёт продавца, применяется к цене продавца до СПП.
+    var basePrice = price * (1 - s.opt);
+    var buyerPrice = basePrice * (1 - s.spp);
+    // Выручка продавца: при СПП за счёт WB — цена продавца (после оптовой скидки).
+    var revenue = s.sppPayer === "seller" ? buyerPrice : basePrice;
     var commission = s.fee * revenue;
     // Эквайринг — от цены продавца; юрлицам WB его не выставляет.
     var acquiring = s.buyer === "b2b" ? 0 : s.acq * revenue;
@@ -577,7 +612,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     var invested = s.cost + s.pack + s.intake;
 
     return {
-      buyerPrice: buyerPrice, revenue: revenue, commission: commission,
+      basePrice: basePrice, buyerPrice: buyerPrice, revenue: revenue, commission: commission,
       acquiring: acquiring, logistics: logistics, adv: adv, vat: vat, tax: tax, minTax: minTax,
       payout: payout, profit: profit,
       margin: revenue > 0 ? profit / revenue : 0,
@@ -621,7 +656,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
 
     $("buyerPrice").textContent = rub(r.buyerPrice);
     $("sppHint").innerHTML = s.sppPayer === "wb"
-      ? "Скидку компенсирует Wildberries — ваша выручка считается от полной цены карточки <b>" + rub(s.price) + "</b>."
+      ? "Скидку компенсирует Wildberries — ваша выручка считается от цены продавца <b>" + rub(r.basePrice) + "</b>."
       : "Скидка за ваш счёт — выручка считается от цены после скидки <b>" + rub(r.buyerPrice) + "</b>.";
     $("logEff").textContent = rub(r.logistics);
 
@@ -631,6 +666,8 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     $("profitCard").classList.toggle("loss", r.profit < 0);
 
     $("acqField").hidden = s.buyer === "b2b";
+    $("b2bFields").hidden = s.buyer !== "b2b";
+    $("optVal").textContent = s.buyer === "b2b" && s.opt > 0 ? "применяется " + pct(s.opt * 100, 0) : "—";
 
     var feeBase = "Считается <b>от цены продавца</b> — до СПП, если её компенсирует WB.";
     if (selectedCat) {
@@ -648,9 +685,13 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
 
     var html = "";
     html += row("Цена в карточке", "+" + rub(s.price), "plus");
+    if (s.opt > 0) {
+      html += row("Оптовая скидка " + pct(s.opt * 100, 0), "−" + rub(s.price - r.basePrice), "minus",
+        "за счёт продавца, для заказа юрлица");
+    }
     if (s.spp > 0) {
       html += row("СПП " + pct(s.spp * 100, 1),
-        s.sppPayer === "wb" ? "0 ₽" : "−" + rub(s.price - r.buyerPrice),
+        s.sppPayer === "wb" ? "0 ₽" : "−" + rub(r.basePrice - r.buyerPrice),
         s.sppPayer === "wb" ? "" : "minus",
         s.sppPayer === "wb" ? "компенсирует WB, покупатель платит " + rub(r.buyerPrice) : "за счёт продавца");
     }
