@@ -169,6 +169,26 @@
   .combo li.active, .combo li:not(.empty):hover { background: var(--accent-soft); }
   .combo li.empty { color: var(--muted); cursor: default; }
 
+  .chart-wrap { position: relative; }
+  .chart-wrap canvas { display: block; width: 100%; height: 230px; }
+  .chart-cross { position: absolute; width: 1px; background: var(--muted); opacity: .55; pointer-events: none; }
+  .chart-tip {
+    position: absolute; pointer-events: none; z-index: 5;
+    background: var(--dark-card); color: var(--dark-card-ink);
+    font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums;
+    padding: 5px 9px; border-radius: 7px; white-space: nowrap;
+    transform: translate(-50%, -130%);
+  }
+  .target-row { display: flex; gap: 10px; }
+  .target-row select { flex: 1.4; width: auto; min-width: 0; }
+  .target-row .money { flex: 1; min-width: 110px; }
+  .copy {
+    width: 100%; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--card); color: var(--ink);
+    font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .copy:hover { background: var(--card-2); }
+
   .readonly {
     border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px;
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -242,6 +262,10 @@
         <div class="field">
           <div class="field-head"><label for="intake">Приёмка WB</label></div>
           <div class="money"><input id="intake" type="number" min="0" step="1" value="0"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="qty">Партия</label></div>
+          <div class="money"><input id="qty" type="number" min="1" step="10" value="100"><span class="unit">шт</span></div>
         </div>
       </section>
 
@@ -332,14 +356,36 @@
           <div class="field-head"><label for="taxMode">Система налогообложения</label></div>
           <select id="taxMode">
             <option value="none">Без налога</option>
-            <option value="income">УСН «Доходы» — % от выручки</option>
-            <option value="profit">УСН «Доходы − Расходы» — % от прибыли</option>
+            <option value="npd">НПД — самозанятый (от выручки)</option>
+            <option value="usn_income">УСН «Доходы» (от выручки)</option>
+            <option value="usn_profit">УСН «Доходы − Расходы» (от прибыли, мин. 1 %)</option>
+            <option value="ausn_income">АУСН «Доходы» (от выручки)</option>
+            <option value="ausn_profit">АУСН «Доходы − Расходы» (от прибыли, мин. 3 %)</option>
+            <option value="osno">ОСНО — налог на прибыль + НДС</option>
           </select>
         </div>
         <div class="field" id="taxRateField" hidden>
           <div class="field-head"><label for="taxRate">Ставка</label><span class="val" id="taxRateVal">6,0%</span></div>
-          <input id="taxRate" type="range" min="0" max="25" step="0.5" value="6">
+          <input id="taxRate" type="range" min="0" max="30" step="0.5" value="6">
           <div class="hint" id="taxHint"></div>
+        </div>
+        <div class="field" id="vatField" hidden>
+          <div class="field-head"><label for="vat">НДС</label></div>
+          <select id="vat">
+            <option value="0">Без НДС</option>
+            <option value="5">5 % — УСН, без права вычета</option>
+            <option value="7">7 % — УСН, без права вычета</option>
+            <option value="10">10 % — льготная ставка</option>
+            <option value="22">22 % — общая ставка</option>
+          </select>
+          <div class="hint">НДС считается «изнутри» цены: выручка × ставка / (100 + ставка).</div>
+        </div>
+        <div class="field" id="vatDeductField" hidden>
+          <div class="field-head"><label for="vatDeduct">Входной НДС к вычету</label></div>
+          <select id="vatDeduct">
+            <option value="no">Нет — закупка без НДС</option>
+            <option value="yes">Да — поставщик с НДС</option>
+          </select>
         </div>
       </section>
     </div>
@@ -368,6 +414,37 @@
         <table class="brk" id="brkTable"></table>
       </section>
 
+      <section class="card">
+        <h2>Прибыль от цены в карточке</h2>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas id="chart" aria-label="График зависимости прибыли от цены в карточке"></canvas>
+          <div class="chart-cross" id="chartCross" hidden></div>
+          <div class="chart-tip" id="chartTip" hidden></div>
+        </div>
+        <div class="hint">Тёмная точка — безубыточность, цветная — текущая цена. Наведите курсор, чтобы посмотреть прибыль при другой цене.</div>
+      </section>
+
+      <section class="card">
+        <h2>Подбор цены под цель</h2>
+        <div class="field">
+          <div class="target-row">
+            <select id="goalKind" aria-label="Целевой показатель">
+              <option value="margin">Маржа</option>
+              <option value="roi">ROI</option>
+              <option value="profit">Прибыль с единицы</option>
+            </select>
+            <div class="money"><input id="goalVal" type="number" step="1" value="15"><span class="unit" id="goalUnit">%</span></div>
+          </div>
+        </div>
+        <div class="readonly"><span class="tag">Рекомендуемая цена в карточке</span><span id="goalPrice">—</span></div>
+        <div class="hint" id="goalHint"></div>
+      </section>
+
+      <section class="card">
+        <h2>Партия</h2>
+        <table class="brk" id="batchTable"></table>
+      </section>
+
       <div class="be-card">
         <div class="be-label">Точка безубыточности</div>
         <div class="be-row">
@@ -375,6 +452,8 @@
           <div class="be-note">цена в карточке, при которой прибыль равна нулю (остальные параметры текущие)</div>
         </div>
       </div>
+
+      <button type="button" class="copy" id="copyLink">Скопировать ссылку на расчёт</button>
     </div>
   </div>
 
@@ -395,12 +474,31 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   var $ = function (id) { return document.getElementById(id); };
 
   var els = {
-    cost: $("cost"), pack: $("pack"), intake: $("intake"),
+    cost: $("cost"), pack: $("pack"), intake: $("intake"), qty: $("qty"),
     price: $("price"), spp: $("spp"),
     fee: $("fee"), acq: $("acq"), storage: $("storage"),
     logFwd: $("logFwd"), logRev: $("logRev"), buyout: $("buyout"),
     drr: $("drr"), review: $("review"),
-    taxMode: $("taxMode"), taxRate: $("taxRate")
+    taxMode: $("taxMode"), taxRate: $("taxRate"), vat: $("vat"), vatDeduct: $("vatDeduct"),
+    goalKind: $("goalKind"), goalVal: $("goalVal")
+  };
+
+  var TAX_DEFAULTS = {
+    none: { rate: 6, vat: 0 },
+    npd: { rate: 4, vat: 0 },
+    usn_income: { rate: 6, vat: 0 },
+    usn_profit: { rate: 15, vat: 0 },
+    ausn_income: { rate: 8, vat: 0 },
+    ausn_profit: { rate: 20, vat: 0 },
+    osno: { rate: 25, vat: 22 }
+  };
+  var TAX_HINTS = {
+    npd: "База — вся выручка (комиссия WB её не уменьшает). 4 % — продажи физлицам. На НПД можно продавать только товары собственного производства.",
+    usn_income: "База — выручка продавца до вычета комиссии WB (за минусом НДС, если он выбран).",
+    usn_profit: "База — прибыль до налога. Если 1 % от выручки больше — платится минимальный налог.",
+    ausn_income: "База — выручка. Стандартная ставка АУСН «Доходы» — 8 %.",
+    ausn_profit: "База — прибыль; минимальный налог — 3 % от выручки. Стандартная ставка — 20 %.",
+    osno: "Налог на прибыль (стандартно 25 %) плюс НДС из цены; входной НДС от закупки можно принять к вычету."
   };
 
   var sppPayer = "wb";
@@ -417,12 +515,15 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   function readState() {
     return {
       cost: num(els.cost), pack: num(els.pack), intake: num(els.intake),
+      qty: Math.max(num(els.qty), 1),
       price: num(els.price), spp: num(els.spp) / 100, sppPayer: sppPayer,
       fee: num(els.fee) / 100, acq: num(els.acq) / 100, storage: num(els.storage),
       logFwd: num(els.logFwd), logRev: num(els.logRev),
       buyout: Math.max(num(els.buyout), 1) / 100,
       drr: num(els.drr) / 100, review: num(els.review),
-      taxMode: els.taxMode.value, taxRate: num(els.taxRate) / 100
+      taxMode: els.taxMode.value, taxRate: num(els.taxRate) / 100,
+      vatRate: parseFloat(els.vat.value) || 0,
+      vatDeduct: els.vatDeduct.value === "yes"
     };
   }
 
@@ -441,16 +542,34 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     var ownCosts = s.cost + s.pack + adv + s.review;
 
     var profitPreTax = payout - ownCosts;
-    var tax = 0;
-    if (s.taxMode === "income") tax = s.taxRate * revenue;
-    else if (s.taxMode === "profit") tax = s.taxRate * Math.max(0, profitPreTax);
 
-    var profit = profitPreTax - tax;
+    // НДС «изнутри» цены; для ОСНО входной НДС от закупки можно принять к вычету.
+    var vat = 0;
+    if (s.vatRate > 0 && (s.taxMode === "usn_income" || s.taxMode === "usn_profit" || s.taxMode === "osno")) {
+      var v = s.vatRate / 100;
+      vat = revenue * v / (1 + v);
+      if (s.taxMode === "osno" && s.vatDeduct) vat = Math.max(0, vat - s.cost * v / (1 + v));
+    }
+    var incomeBase = revenue - vat;
+    var profitBase = Math.max(0, profitPreTax - vat);
+
+    var tax = 0, minTax = false;
+    if (s.taxMode === "npd" || s.taxMode === "usn_income" || s.taxMode === "ausn_income") {
+      tax = s.taxRate * incomeBase;
+    } else if (s.taxMode === "usn_profit" || s.taxMode === "ausn_profit") {
+      var floor = (s.taxMode === "usn_profit" ? 0.01 : 0.03) * incomeBase; // минимальный налог 1 % / 3 %
+      tax = s.taxRate * profitBase;
+      if (floor > tax) { tax = floor; minTax = true; }
+    } else if (s.taxMode === "osno") {
+      tax = s.taxRate * profitBase;
+    }
+
+    var profit = profitPreTax - vat - tax;
     var invested = s.cost + s.pack + s.intake;
 
     return {
       buyerPrice: buyerPrice, revenue: revenue, commission: commission,
-      acquiring: acquiring, logistics: logistics, adv: adv, tax: tax,
+      acquiring: acquiring, logistics: logistics, adv: adv, vat: vat, tax: tax, minTax: minTax,
       payout: payout, profit: profit,
       margin: revenue > 0 ? profit / revenue : 0,
       roi: invested > 0 ? profit / invested : 0
@@ -511,11 +630,10 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
       $("feeHint").innerHTML = "Ставка по вашей категории. " + feeBase;
     }
 
-    var taxRateField = $("taxRateField");
-    taxRateField.hidden = s.taxMode === "none";
-    $("taxHint").textContent = s.taxMode === "income"
-      ? "База — выручка продавца (до вычета комиссии WB)."
-      : "База — прибыль до налога; при убытке налог не начисляется.";
+    $("taxRateField").hidden = s.taxMode === "none";
+    $("vatField").hidden = !(s.taxMode === "usn_income" || s.taxMode === "usn_profit" || s.taxMode === "osno");
+    $("vatDeductField").hidden = !(s.taxMode === "osno" && s.vatRate > 0);
+    $("taxHint").textContent = TAX_HINTS[s.taxMode] || "";
 
     var html = "";
     html += row("Цена в карточке", "+" + rub(s.price), "plus");
@@ -536,14 +654,25 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     if (s.pack > 0) html += row("Упаковка", "−" + rub(s.pack), "minus");
     if (r.adv > 0) html += row("Реклама (ДРР " + pct(s.drr * 100) + ")", "−" + rub(r.adv), "minus", "от цены в карточке");
     if (s.review > 0) html += row("Баллы за отзыв", "−" + rub(s.review), "minus");
-    if (s.taxMode !== "none") html += row("Налог " + pct(s.taxRate * 100), "−" + rub(r.tax), "minus",
-      s.taxMode === "income" ? "от выручки" : "от прибыли");
+    if (r.vat > 0) html += row("НДС " + pct(s.vatRate, 0), "−" + rub(r.vat), "minus", "из цены, к уплате");
+    if (s.taxMode !== "none") {
+      var taxNote = r.minTax ? "минимальный налог от выручки"
+        : (s.taxMode === "usn_profit" || s.taxMode === "ausn_profit" || s.taxMode === "osno") ? "от прибыли" : "от выручки";
+      html += row("Налог " + pct(s.taxRate * 100), "−" + rub(r.tax), "minus", taxNote);
+    }
     html += "<tr class='total'><td>Чистая прибыль</td><td class='num " + (r.profit < 0 ? "minus" : "plus") + "'>" +
       (r.profit < 0 ? "−" : "+") + rub(Math.abs(r.profit)) + "</td></tr>";
     $("brkTable").innerHTML = html;
 
     var be = breakeven(s);
     $("breakeven").textContent = isFinite(be) ? rub(be) : "—";
+
+    renderGoal(s);
+    renderBatch(s, r);
+    lastState = s; lastBe = be;
+    drawChart(s, be);
+
+    try { history.replaceState(null, "", "#" + stateToHash()); } catch (e) { /* iframe без истории */ }
 
     try {
       var save = {};
@@ -554,11 +683,196 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     } catch (e) { /* приватный режим — не сохраняем */ }
   }
 
+  // ---- подбор цены под цель ----
+  function metricOf(s, price, kind) {
+    var r = compute(s, price);
+    if (kind === "margin") return r.margin * 100;
+    if (kind === "roi") return r.roi * 100;
+    return r.profit;
+  }
+
+  function solvePrice(s, kind, target) {
+    var lo = 0, hi = Math.max(s.price * 4, 20000);
+    for (var g = 0; g < 14 && metricOf(s, hi, kind) < target; g++) hi *= 2;
+    if (metricOf(s, hi, kind) < target) return NaN; // цель за асимптотой (маржа упирается в потолок)
+    for (var i = 0; i < 60; i++) {
+      var mid = (lo + hi) / 2;
+      if (metricOf(s, mid, kind) < target) lo = mid; else hi = mid;
+    }
+    return hi;
+  }
+
+  function renderGoal(s) {
+    var kind = els.goalKind.value;
+    var target = parseFloat(els.goalVal.value);
+    if (!isFinite(target)) target = 0;
+    $("goalUnit").textContent = kind === "profit" ? "₽" : "%";
+    var p = solvePrice(s, kind, target);
+    if (isFinite(p)) {
+      var g = compute(s, p);
+      $("goalPrice").textContent = rub(p);
+      $("goalHint").innerHTML = "При цене <b>" + rub(p) + "</b>: прибыль " + rub(g.profit) +
+        " с единицы, маржа " + pct(g.margin * 100) + ", ROI " + pct(g.roi * 100) +
+        "; покупатель заплатит " + rub(g.buyerPrice) + ".";
+    } else {
+      $("goalPrice").textContent = "—";
+      $("goalHint").textContent = "Цель недостижима: с ростом цены показатель упирается в потолок при текущих ставках комиссии, СПП и налога. Снизьте цель или расходы.";
+    }
+  }
+
+  // ---- партия ----
+  function renderBatch(s, r) {
+    var n = s.qty;
+    var html = "";
+    html += row("Вложения в товар", rub((s.cost + s.pack + s.intake) * n), "", "себестоимость + упаковка + приёмка, " + fmtInt.format(n) + " шт");
+    html += row("Выручка продавца", rub(r.revenue * n), "");
+    html += "<tr class='total'><td>Прибыль с партии</td><td class='num " + (r.profit < 0 ? "minus" : "plus") + "'>" +
+      (r.profit < 0 ? "−" : "+") + rub(Math.abs(r.profit * n)) + "</td></tr>";
+    $("batchTable").innerHTML = html;
+  }
+
+  // ---- график «прибыль от цены» ----
+  var lastState = null, lastBe = NaN, chartMap = null;
+  var chartEl = $("chart"), chartTip = $("chartTip"), chartCross = $("chartCross");
+
+  function cssTok(css, name) { return css.getPropertyValue(name).trim(); }
+  function niceStep(raw) {
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  }
+  function shortRub(v) {
+    return Math.abs(v) >= 10000
+      ? (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 0 }) + " к"
+      : fmtInt.format(v);
+  }
+
+  function drawChart(s, be) {
+    var w = chartEl.parentElement.clientWidth || 520, h = 230;
+    var dpr = window.devicePixelRatio || 1;
+    chartEl.width = Math.round(w * dpr); chartEl.height = Math.round(h * dpr);
+    chartEl.style.width = w + "px";
+    var ctx = chartEl.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var css = getComputedStyle(document.documentElement);
+    var cLine = cssTok(css, "--line"), cMuted = cssTok(css, "--muted"),
+        cAccent = cssTok(css, "--accent"), cInk = cssTok(css, "--ink"), cCard = cssTok(css, "--card");
+
+    var ref = isFinite(be) && be > 0 ? be : (s.price > 0 ? s.price : 1000);
+    var x0 = Math.max(0, Math.min(ref * 0.55, s.price > 0 ? s.price * 0.7 : ref));
+    var x1 = Math.max(ref * 1.7, s.price * 1.35, x0 + 100);
+
+    var N = 140, pts = [], ymin = Infinity, ymax = -Infinity;
+    for (var i = 0; i <= N; i++) {
+      var px = x0 + (x1 - x0) * i / N;
+      var pf = compute(s, px).profit;
+      pts.push([px, pf]);
+      if (pf < ymin) ymin = pf;
+      if (pf > ymax) ymax = pf;
+    }
+    if (ymin > 0) ymin = -ymax * 0.06;
+    if (ymax < 0) ymax = -ymin * 0.06;
+    var padY = (ymax - ymin) * 0.08 || 1;
+    ymin -= padY; ymax += padY;
+
+    var L = 56, R = 12, T = 12, B = 26, iw = w - L - R, ih = h - T - B;
+    function X(v) { return L + (v - x0) / (x1 - x0) * iw; }
+    function Y(v) { return T + (ymax - v) / (ymax - ymin) * ih; }
+
+    ctx.font = "11px " + cssTok(css, "--mono");
+    ctx.fillStyle = cMuted;
+
+    var stepY = niceStep((ymax - ymin) / 4);
+    for (var gy = Math.ceil(ymin / stepY) * stepY; gy <= ymax; gy += stepY) {
+      ctx.strokeStyle = cLine; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(L, Y(gy)); ctx.lineTo(w - R, Y(gy)); ctx.stroke();
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(shortRub(gy), L - 8, Y(gy));
+    }
+    var stepX = niceStep((x1 - x0) / 4);
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (var gx = Math.ceil(x0 / stepX) * stepX; gx <= x1; gx += stepX) {
+      ctx.fillText(shortRub(gx), X(gx), h - B + 8);
+    }
+
+    // нулевая линия — акцентнее сетки
+    ctx.strokeStyle = cMuted; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(L, Y(0)); ctx.lineTo(w - R, Y(0)); ctx.stroke();
+
+    ctx.strokeStyle = cAccent; ctx.lineWidth = 2; ctx.lineJoin = "round";
+    ctx.beginPath();
+    pts.forEach(function (p, i) { i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])); });
+    ctx.stroke();
+
+    function dot(x, y, fill, r) {
+      ctx.beginPath(); ctx.arc(x, y, r + 2, 0, 7); ctx.fillStyle = cCard; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill();
+    }
+    if (isFinite(be) && be >= x0 && be <= x1) dot(X(be), Y(0), cInk, 4);
+    if (s.price >= x0 && s.price <= x1) dot(X(s.price), Y(compute(s, s.price).profit), cAccent, 4.5);
+
+    chartMap = { x0: x0, x1: x1, L: L, iw: iw, T: T, ih: ih, w: w, h: h, B: B };
+  }
+
+  chartEl.addEventListener("mousemove", function (e) {
+    if (!chartMap || !lastState) return;
+    var rect = chartEl.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    if (mx < chartMap.L || mx > chartMap.L + chartMap.iw) { chartTip.hidden = true; chartCross.hidden = true; return; }
+    var price = chartMap.x0 + (mx - chartMap.L) / chartMap.iw * (chartMap.x1 - chartMap.x0);
+    var pf = compute(lastState, price).profit;
+    chartTip.textContent = rub(price) + " → " + (pf < 0 ? "−" : "+") + rub(Math.abs(pf));
+    chartTip.style.left = mx + "px";
+    chartTip.style.top = "38px";
+    chartTip.hidden = false;
+    chartCross.style.left = mx + "px";
+    chartCross.style.top = chartMap.T + "px";
+    chartCross.style.height = chartMap.ih + "px";
+    chartCross.hidden = false;
+  });
+  chartEl.addEventListener("mouseleave", function () { chartTip.hidden = true; chartCross.hidden = true; });
+
+  // ---- ссылка с параметрами ----
+  function stateToHash() {
+    var p = new URLSearchParams();
+    Object.keys(els).forEach(function (k) { p.set(k, els[k].value); });
+    p.set("payer", sppPayer);
+    if (selectedCat) p.set("cat", selectedCat[0]);
+    return p.toString();
+  }
+
+  $("copyLink").addEventListener("click", function () {
+    var btn = this;
+    var done = function (ok) {
+      btn.textContent = ok ? "Ссылка скопирована ✓" : "Не получилось — скопируйте адрес из строки браузера";
+      setTimeout(function () { btn.textContent = "Скопировать ссылку на расчёт"; }, 2200);
+    };
+    try {
+      navigator.clipboard.writeText(location.href).then(function () { done(true); }, function () { done(false); });
+    } catch (e) { done(false); }
+  });
+
   // ---- события ----
   Object.keys(els).forEach(function (k) {
     els[k].addEventListener("input", render);
     els[k].addEventListener("change", render);
   });
+
+  els.taxMode.addEventListener("change", function () {
+    var d = TAX_DEFAULTS[els.taxMode.value] || TAX_DEFAULTS.none;
+    els.taxRate.value = d.rate;
+    els.vat.value = d.vat;
+    render();
+  });
+
+  window.addEventListener("resize", function () { if (lastState) drawChart(lastState, lastBe); });
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { render(); });
+  } catch (e) { /* старые браузеры */ }
+  new MutationObserver(function () { render(); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   // ---- категория → комиссия ----
   var catInput = $("cat"), catList = $("catList"), catClear = $("catClear");
@@ -658,10 +972,23 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     });
   });
 
-  // ---- восстановление ----
+  // ---- восстановление: сначала параметры из ссылки, иначе localStorage ----
   try {
-    var saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    var saved = null;
+    if (location.hash.length > 1) {
+      var hp = new URLSearchParams(location.hash.slice(1));
+      if (hp.has("price") || hp.has("cost")) {
+        saved = {};
+        hp.forEach(function (v, k) { saved[k] = v; });
+        if (saved.payer) { saved._sppPayer = saved.payer; delete saved.payer; }
+        if (saved.cat) { saved._cat = saved.cat; delete saved.cat; }
+      }
+    }
+    if (!saved) saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
     if (saved) {
+      // миграция старых сохранений
+      if (saved.taxMode === "income") saved.taxMode = "usn_income";
+      if (saved.taxMode === "profit") saved.taxMode = "usn_profit";
       Object.keys(els).forEach(function (k) { if (saved[k] !== undefined) els[k].value = saved[k]; });
       if (saved._cat) {
         for (var ci = 0; ci < WB_CATEGORIES.length; ci++) {
