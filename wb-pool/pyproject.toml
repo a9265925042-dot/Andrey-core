@@ -1,0 +1,84 @@
+[project]
+name = "wb-pool"
+version = "0.1.0"
+description = "WB cabinet purchases — 4-layer pool builder with discovery + buy + Excel ingest"
+requires-python = ">=3.11"
+
+dependencies = [
+    # HTTP clients
+    "httpx>=0.27.0",
+    "curl-cffi>=0.7.0",          # TLS-fingerprint browser impersonation
+    "browser-cookie3>=0.20.0",   # cookies import из Chrome/Firefox
+
+    # Data layer
+    "sqlalchemy[asyncio]>=2.0.30",
+    "aiosqlite>=0.20.0",         # SQLite async (production: replace with asyncpg)
+    "alembic>=1.13.0",
+
+    # Modeling
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+
+    # CLI
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+
+    # Logging
+    "structlog>=24.1.0",
+
+    # Excel parsers
+    "python-calamine>=0.2.0",    # fast XLSX (10× быстрее openpyxl)
+    "openpyxl>=3.1.0",           # fallback parser
+
+    # Throttle / concurrency
+    "aiolimiter>=1.1.0",
+    "purgatory>=2.0.0",          # circuit breaker (optional)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "respx>=0.20.0",              # HTTP mocks для tests
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+]
+
+[project.scripts]
+wb-pool = "wb_pool.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wb_pool"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = [
+    "E501",              # line-length handled by formatter
+    "RUF001", "RUF002", "RUF003",  # кириллица в строках/докстрингах — intentional
+    "N818",              # CabinetAuthExpired — имя из skill contract
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["browser_cookie3.*", "python_calamine.*", "openpyxl.*", "curl_cffi.*"]
+ignore_missing_imports = true

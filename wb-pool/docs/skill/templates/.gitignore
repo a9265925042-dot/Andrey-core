@@ -1,0 +1,50 @@
+# Secrets — НИКОГДА не коммить
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Cabinet cookies (privacy)
+data/cabinet_cookies.pkl
+data/cabinet/
+
+# Logs (gitignore — могут содержать nm ids)
+data/logs/
+*.log
+
+# Database
+data/*.db
+data/*.db-*
+data/*.db.*
+
+# Excel ZIPs (приватные данные конкурентов)
+data/cabinet/excel/
+data/raw_archives/
+
+# tmp scratch
+tmp/
+
+# Pool JSONs — committed only specific evidence runs
+# data/pools/*.json — uncomment to ignore all
+# Default: keep them for audit trail
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
