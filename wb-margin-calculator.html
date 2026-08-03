@@ -310,9 +310,16 @@
           <div class="hint" id="feeHint">Ставка по вашей категории. Считается <b>от цены продавца</b> — до СПП, если её компенсирует WB.</div>
         </div>
         <div class="field">
-          <div class="field-head"><label for="acq">Эквайринг</label><span class="val" id="acqVal">2,0%</span></div>
-          <input id="acq" type="range" min="0" max="5" step="0.1" value="2">
-          <div class="hint">От суммы, которую фактически платит покупатель (после СПП).</div>
+          <div class="field-head"><label>Покупатель</label></div>
+          <div class="seg" id="buyerSeg" role="radiogroup" aria-label="Тип покупателя">
+            <button type="button" data-v="b2c" class="on" role="radio" aria-checked="true">Физлицо<span class="seg-note">обычная продажа</span></button>
+            <button type="button" data-v="b2b" role="radio" aria-checked="false">Бизнес (юрлицо)<span class="seg-note">эквайринг не взимается</span></button>
+          </div>
+        </div>
+        <div class="field" id="acqField">
+          <div class="field-head"><label for="acq">Эквайринг</label><span class="val" id="acqVal">2,5%</span></div>
+          <input id="acq" type="range" min="0" max="5" step="0.1" value="2.5">
+          <div class="hint">От цены продавца (до СПП) — так в детализированном отчёте WB («компенсация платёжных услуг», обычно 2,2–2,9 %). При продаже юрлицу не взимается.</div>
         </div>
         <div class="field">
           <div class="field-head"><label for="storage">Хранение (на единицу)</label></div>
@@ -458,7 +465,7 @@
   </div>
 
   <footer class="foot">
-    <p>Методика: комиссия WB начисляется на цену продавца; стандартную СПП компенсирует Wildberries и на выплату она не влияет. Эквайринг — от суммы оплаты покупателя. Логистика приведена к проданной единице через процент выкупа. Хранение и приёмка — усреднённые значения на единицу.</p>
+    <p>Методика сверена с фактическим еженедельным детализированным отчётом WB: выплата продавцу = цена продавца × (1 − кВВ с НДС) − эквайринг. Стандартную СПП компенсирует Wildberries — на выплату она не влияет. Эквайринг («компенсация платёжных услуг») считается от цены продавца и юрлицам не выставляется. Логистика приведена к проданной единице через процент выкупа. Ставки свода — кВВ с НДС.</p>
     <p>Ставки комиссии, логистики и эквайринга меняются — сверяйте с актуальными тарифами в личном кабинете WB.</p>
   </footer>
 </div>
@@ -502,6 +509,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   };
 
   var sppPayer = "wb";
+  var buyer = "b2c";
   var selectedCat = null; // [название, комиссия %] из свода
   var STORE_KEY = "wb-margin-calc-v2";
 
@@ -516,7 +524,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     return {
       cost: num(els.cost), pack: num(els.pack), intake: num(els.intake),
       qty: Math.max(num(els.qty), 1),
-      price: num(els.price), spp: num(els.spp) / 100, sppPayer: sppPayer,
+      price: num(els.price), spp: num(els.spp) / 100, sppPayer: sppPayer, buyer: buyer,
       fee: num(els.fee) / 100, acq: num(els.acq) / 100, storage: num(els.storage),
       logFwd: num(els.logFwd), logRev: num(els.logRev),
       buyout: Math.max(num(els.buyout), 1) / 100,
@@ -533,7 +541,8 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     // Выручка продавца: при СПП за счёт WB — полная цена карточки.
     var revenue = s.sppPayer === "seller" ? buyerPrice : price;
     var commission = s.fee * revenue;
-    var acquiring = s.acq * buyerPrice;
+    // Эквайринг — от цены продавца; юрлицам WB его не выставляет.
+    var acquiring = s.buyer === "b2b" ? 0 : s.acq * revenue;
     var logistics = s.logFwd / s.buyout + s.logRev * (1 - s.buyout) / s.buyout;
     var adv = s.drr * price;
 
@@ -621,6 +630,8 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     $("roi").textContent = pct(r.roi * 100);
     $("profitCard").classList.toggle("loss", r.profit < 0);
 
+    $("acqField").hidden = s.buyer === "b2b";
+
     var feeBase = "Считается <b>от цены продавца</b> — до СПП, если её компенсирует WB.";
     if (selectedCat) {
       $("feeHint").innerHTML = Math.abs(s.fee * 100 - selectedCat[1]) < 0.026
@@ -645,7 +656,9 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     }
     html += row("Комиссия WB " + pct(s.fee * 100), "−" + rub(r.commission), "minus",
       (selectedCat ? selectedCat[0] + " · " : "") + "от выручки продавца " + rub(r.revenue));
-    html += row("Эквайринг " + pct(s.acq * 100), "−" + rub(r.acquiring), "minus", "от оплаты покупателя " + rub(r.buyerPrice));
+    html += s.buyer === "b2b"
+      ? row("Эквайринг", "0 ₽", "", "юрлицо — не взимается")
+      : row("Эквайринг " + pct(s.acq * 100), "−" + rub(r.acquiring), "minus", "от цены продавца " + rub(r.revenue));
     html += row("Логистика", "−" + rub(r.logistics), "minus", "с учётом выкупа " + pct(s.buyout * 100, 0));
     if (s.storage > 0) html += row("Хранение", "−" + rub(s.storage), "minus");
     if (s.intake > 0) html += row("Приёмка", "−" + rub(s.intake), "minus");
@@ -678,6 +691,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
       var save = {};
       Object.keys(els).forEach(function (k) { save[k] = els[k].value; });
       save._sppPayer = sppPayer;
+      save._buyer = buyer;
       save._cat = selectedCat ? selectedCat[0] : null;
       localStorage.setItem(STORE_KEY, JSON.stringify(save));
     } catch (e) { /* приватный режим — не сохраняем */ }
@@ -839,6 +853,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     var p = new URLSearchParams();
     Object.keys(els).forEach(function (k) { p.set(k, els[k].value); });
     p.set("payer", sppPayer);
+    p.set("buyer", buyer);
     if (selectedCat) p.set("cat", selectedCat[0]);
     return p.toString();
   }
@@ -972,6 +987,18 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     });
   });
 
+  var buyerBtns = $("buyerSeg").querySelectorAll("button");
+  buyerBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      buyer = b.dataset.v;
+      buyerBtns.forEach(function (x) {
+        x.classList.toggle("on", x === b);
+        x.setAttribute("aria-checked", x === b ? "true" : "false");
+      });
+      render();
+    });
+  });
+
   // ---- восстановление: сначала параметры из ссылки, иначе localStorage ----
   try {
     var saved = null;
@@ -981,6 +1008,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
         saved = {};
         hp.forEach(function (v, k) { saved[k] = v; });
         if (saved.payer) { saved._sppPayer = saved.payer; delete saved.payer; }
+        if (saved.buyer) { saved._buyer = saved.buyer; delete saved.buyer; }
         if (saved.cat) { saved._cat = saved.cat; delete saved.cat; }
       }
     }
@@ -1001,6 +1029,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
         }
       }
       if (saved._sppPayer === "seller") segBtns[1].click();
+      if (saved._buyer === "b2b") buyerBtns[1].click();
     }
   } catch (e) { /* повреждённое хранилище — стартуем с дефолтов */ }
 
