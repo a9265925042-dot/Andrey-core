@@ -1,0 +1,539 @@
+<title>Калькулятор маржи Wildberries</title>
+<style>
+  :root {
+    --paper: #F3EFE6;
+    --card: #FDFBF5;
+    --card-2: #F7F3EA;
+    --ink: #22201B;
+    --muted: #8B8578;
+    --line: #E4DECF;
+    --accent: #C81E5B;
+    --accent-soft: #F3D8E2;
+    --good: #1E5C3F;
+    --good-bg: #E3EEE6;
+    --bad: #A8322E;
+    --dark-card: #211F1B;
+    --dark-card-ink: #F3EFE6;
+    --dark-card-muted: #9B958A;
+    --focus: #C81E5B;
+    --mono: "SF Mono", ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Playfair Display", Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #191813;
+      --card: #211F1A;
+      --card-2: #262420;
+      --ink: #EEE9DC;
+      --muted: #96907F;
+      --line: #35322A;
+      --accent: #E4487F;
+      --accent-soft: #47222F;
+      --good: #7BC49A;
+      --good-bg: #1F2E25;
+      --bad: #E07A72;
+      --dark-card: #EEE9DC;
+      --dark-card-ink: #191813;
+      --dark-card-muted: #6E695E;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #F3EFE6; --card: #FDFBF5; --card-2: #F7F3EA; --ink: #22201B;
+    --muted: #8B8578; --line: #E4DECF; --accent: #C81E5B; --accent-soft: #F3D8E2;
+    --good: #1E5C3F; --good-bg: #E3EEE6; --bad: #A8322E;
+    --dark-card: #211F1B; --dark-card-ink: #F3EFE6; --dark-card-muted: #9B958A;
+  }
+  :root[data-theme="dark"] {
+    --paper: #191813; --card: #211F1A; --card-2: #262420; --ink: #EEE9DC;
+    --muted: #96907F; --line: #35322A; --accent: #E4487F; --accent-soft: #47222F;
+    --good: #7BC49A; --good-bg: #1F2E25; --bad: #E07A72;
+    --dark-card: #EEE9DC; --dark-card-ink: #191813; --dark-card-muted: #6E695E;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header.top { margin-bottom: 28px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(26px, 4vw, 38px);
+    margin: 0 0 6px; text-wrap: balance;
+  }
+  .sub { color: var(--muted); max-width: 62ch; margin: 0; }
+
+  .grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .results { position: sticky; top: 20px; }
+  @media (max-width: 900px) { .results { position: static; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 24px;
+  }
+  .card h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; font-weight: 600; color: var(--muted);
+    margin: 0 0 18px;
+  }
+
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 7px; }
+  .field-head label { font-weight: 500; }
+  .field-head .val { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .hint b { color: var(--ink); font-weight: 600; }
+
+  .money { position: relative; }
+  .money input {
+    width: 100%; padding: 12px 40px 12px 14px;
+    background: var(--card-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px;
+    font-family: var(--mono); font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+  .money .unit {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-family: var(--mono); font-size: 14px; pointer-events: none;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, input[type=range]:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 2px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 22px; background: transparent; margin: 2px 0 0; padding: 0;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px;
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill,50%), var(--line) var(--fill,50%));
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); border: none; margin-top: -7px;
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+  input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer;
+  }
+
+  .seg { display: flex; background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button {
+    flex: 1; padding: 9px 10px; border: none; border-radius: 8px;
+    background: transparent; color: var(--muted); font-family: var(--sans);
+    font-size: 13.5px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .seg button.on .seg-note { color: var(--accent); }
+  .seg-note { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+
+  select {
+    width: 100%; padding: 12px 14px; background: var(--card-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; font-family: var(--sans); font-size: 15px;
+  }
+
+  .readonly {
+    border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+  .readonly .tag { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  /* Results */
+  .profit-card { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 25%, var(--line)); }
+  .profit-card.loss { background: color-mix(in srgb, var(--bad) 12%, var(--card)); border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+  .profit-big {
+    font-family: var(--serif); font-weight: 700; font-size: clamp(40px, 6vw, 58px);
+    line-height: 1.05; color: var(--good); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .profit-card.loss .profit-big { color: var(--bad); }
+  .profit-metrics {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+    margin-top: 18px; padding-top: 16px;
+  }
+  .metric .m-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .metric .m-val { font-family: var(--serif); font-weight: 700; font-size: 26px; color: var(--good); font-variant-numeric: tabular-nums; }
+  .profit-card.loss .metric .m-val { color: var(--bad); }
+  .metric .m-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  table.brk { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.brk td { padding: 8px 0; vertical-align: top; }
+  table.brk tr + tr td { border-top: 1px solid var(--line); }
+  td.num { text-align: right; font-family: var(--mono); font-weight: 600; white-space: nowrap; padding-left: 14px; }
+  td.num.minus { color: var(--bad); }
+  td.num.plus { color: var(--good); }
+  .row-note { display: block; font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  tr.total td { border-top: 1px solid var(--ink) !important; font-weight: 700; }
+  tr.payout td { background: transparent; font-weight: 600; }
+
+  .be-card {
+    background: var(--dark-card); color: var(--dark-card-ink);
+    border-radius: 14px; padding: 22px 24px; border: 1px solid transparent;
+  }
+  .be-card .be-label { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--dark-card-muted); margin-bottom: 8px; }
+  .be-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .be-num { font-family: var(--serif); font-weight: 700; font-size: 36px; font-variant-numeric: tabular-nums; }
+  .be-note { color: var(--dark-card-muted); font-size: 12.5px; max-width: 26ch; }
+
+  .foot { margin-top: 32px; color: var(--muted); font-size: 13px; max-width: 78ch; }
+  .foot p { margin: 0 0 8px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="kicker">Wildberries · юнит-экономика</div>
+    <h1>Калькулятор маржи и ROI</h1>
+    <p class="sub">Считает чистую прибыль с проданной единицы: комиссия от цены продавца, эквайринг от оплаты покупателя, логистика с учётом процента выкупа, налог по выбранной системе.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ===================== INPUTS ===================== -->
+    <div class="col">
+      <section class="card">
+        <h2>Товар</h2>
+        <div class="field">
+          <div class="field-head"><label for="cost">Себестоимость</label></div>
+          <div class="money"><input id="cost" type="number" min="0" step="10" value="960"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="pack">Упаковка</label></div>
+          <div class="money"><input id="pack" type="number" min="0" step="5" value="30"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="intake">Приёмка WB</label></div>
+          <div class="money"><input id="intake" type="number" min="0" step="1" value="0"><span class="unit">₽</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Цена и СПП</h2>
+        <div class="field">
+          <div class="field-head"><label for="price">Цена в карточке <span class="row-note" style="display:inline">до СПП</span></label></div>
+          <div class="money"><input id="price" type="number" min="0" step="50" value="1585"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="spp">СПП (скидка постоянного покупателя)</label><span class="val" id="sppVal">18,0%</span></div>
+          <input id="spp" type="range" min="0" max="40" step="0.5" value="18">
+        </div>
+        <div class="field">
+          <div class="field-head"><label>Кто оплачивает скидку</label></div>
+          <div class="seg" id="sppPayer" role="radiogroup" aria-label="Кто оплачивает скидку">
+            <button type="button" data-v="wb" class="on" role="radio" aria-checked="true">Wildberries<span class="seg-note">стандартная СПП — выручку не трогает</span></button>
+            <button type="button" data-v="seller" role="radio" aria-checked="false">Продавец<span class="seg-note">акция за ваш счёт</span></button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="readonly"><span class="tag">Цена для покупателя</span><span id="buyerPrice">1 300 ₽</span></div>
+          <div class="hint" id="sppHint"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Wildberries</h2>
+        <div class="field">
+          <div class="field-head"><label for="fee">Комиссия WB</label><span class="val" id="feeVal">25,0%</span></div>
+          <input id="fee" type="range" min="0" max="40" step="0.05" value="25">
+          <div class="hint">Ставка по вашей категории из личного кабинета (Тарифы → Комиссия). Считается <b>от цены продавца</b> — до СПП, если её компенсирует WB.</div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="acq">Эквайринг</label><span class="val" id="acqVal">2,0%</span></div>
+          <input id="acq" type="range" min="0" max="5" step="0.1" value="2">
+          <div class="hint">От суммы, которую фактически платит покупатель (после СПП).</div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="storage">Хранение (на единицу)</label></div>
+          <div class="money"><input id="storage" type="number" min="0" step="1" value="0"><span class="unit">₽</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Логистика</h2>
+        <div class="field">
+          <div class="field-head"><label for="logFwd">Доставка до клиента</label></div>
+          <div class="money"><input id="logFwd" type="number" min="0" step="5" value="90"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="logRev">Обратная логистика (возврат)</label></div>
+          <div class="money"><input id="logRev" type="number" min="0" step="5" value="50"><span class="unit">₽</span></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="buyout">Процент выкупа</label><span class="val" id="buyoutVal">90%</span></div>
+          <input id="buyout" type="range" min="5" max="100" step="1" value="90">
+          <div class="hint">Невыкупленные поездки размазываются по проданным единицам: эффективная логистика — <b id="logEff">…</b> на проданную штуку.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Маркетинг</h2>
+        <div class="field">
+          <div class="field-head"><label for="drr">ДРР — доля рекламных расходов</label><span class="val" id="drrVal">0,0%</span></div>
+          <input id="drr" type="range" min="0" max="50" step="0.5" value="0">
+          <div class="hint">От цены в карточке (до СПП).</div>
+        </div>
+        <div class="field">
+          <div class="field-head"><label for="review">Баллы за отзыв (на единицу)</label></div>
+          <div class="money"><input id="review" type="number" min="0" step="10" value="0"><span class="unit">₽</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Налоги</h2>
+        <div class="field">
+          <div class="field-head"><label for="taxMode">Система налогообложения</label></div>
+          <select id="taxMode">
+            <option value="none">Без налога</option>
+            <option value="income">УСН «Доходы» — % от выручки</option>
+            <option value="profit">УСН «Доходы − Расходы» — % от прибыли</option>
+          </select>
+        </div>
+        <div class="field" id="taxRateField" hidden>
+          <div class="field-head"><label for="taxRate">Ставка</label><span class="val" id="taxRateVal">6,0%</span></div>
+          <input id="taxRate" type="range" min="0" max="25" step="0.5" value="6">
+          <div class="hint" id="taxHint"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===================== RESULTS ===================== -->
+    <div class="col results">
+      <section class="card profit-card" id="profitCard">
+        <h2>Чистая прибыль с единицы</h2>
+        <div class="profit-big" id="profit">0 ₽</div>
+        <div class="profit-metrics">
+          <div class="metric">
+            <div class="m-label">Маржа</div>
+            <div class="m-val" id="margin">0%</div>
+            <div class="m-sub">прибыль / выручка продавца</div>
+          </div>
+          <div class="metric">
+            <div class="m-label">ROI</div>
+            <div class="m-val" id="roi">0%</div>
+            <div class="m-sub">прибыль / (себестоимость + упаковка + приёмка)</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Разбивка на единицу</h2>
+        <table class="brk" id="brkTable"></table>
+      </section>
+
+      <div class="be-card">
+        <div class="be-label">Точка безубыточности</div>
+        <div class="be-row">
+          <div class="be-num" id="breakeven">—</div>
+          <div class="be-note">цена в карточке, при которой прибыль равна нулю (остальные параметры текущие)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <p>Методика: комиссия WB начисляется на цену продавца; стандартную СПП компенсирует Wildberries и на выплату она не влияет. Эквайринг — от суммы оплаты покупателя. Логистика приведена к проданной единице через процент выкупа. Хранение и приёмка — усреднённые значения на единицу.</p>
+    <p>Ставки комиссии, логистики и эквайринга меняются — сверяйте с актуальными тарифами в личном кабинете WB.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var els = {
+    cost: $("cost"), pack: $("pack"), intake: $("intake"),
+    price: $("price"), spp: $("spp"),
+    fee: $("fee"), acq: $("acq"), storage: $("storage"),
+    logFwd: $("logFwd"), logRev: $("logRev"), buyout: $("buyout"),
+    drr: $("drr"), review: $("review"),
+    taxMode: $("taxMode"), taxRate: $("taxRate")
+  };
+
+  var sppPayer = "wb";
+  var STORE_KEY = "wb-margin-calc-v2";
+
+  var fmtInt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+  function rub(v) { return fmtInt.format(Math.round(v)) + " ₽"; }
+  function pct(v, d) {
+    return v.toLocaleString("ru-RU", { minimumFractionDigits: d === undefined ? 1 : d, maximumFractionDigits: d === undefined ? 1 : d }) + "%";
+  }
+  function num(el) { var v = parseFloat(el.value); return isFinite(v) && v > 0 ? v : 0; }
+
+  function readState() {
+    return {
+      cost: num(els.cost), pack: num(els.pack), intake: num(els.intake),
+      price: num(els.price), spp: num(els.spp) / 100, sppPayer: sppPayer,
+      fee: num(els.fee) / 100, acq: num(els.acq) / 100, storage: num(els.storage),
+      logFwd: num(els.logFwd), logRev: num(els.logRev),
+      buyout: Math.max(num(els.buyout), 1) / 100,
+      drr: num(els.drr) / 100, review: num(els.review),
+      taxMode: els.taxMode.value, taxRate: num(els.taxRate) / 100
+    };
+  }
+
+  // Юнит-экономика одной проданной единицы при цене в карточке price.
+  function compute(s, price) {
+    var buyerPrice = price * (1 - s.spp);
+    // Выручка продавца: при СПП за счёт WB — полная цена карточки.
+    var revenue = s.sppPayer === "seller" ? buyerPrice : price;
+    var commission = s.fee * revenue;
+    var acquiring = s.acq * buyerPrice;
+    var logistics = s.logFwd / s.buyout + s.logRev * (1 - s.buyout) / s.buyout;
+    var adv = s.drr * price;
+
+    var wbCosts = commission + acquiring + logistics + s.storage + s.intake;
+    var payout = revenue - wbCosts;
+    var ownCosts = s.cost + s.pack + adv + s.review;
+
+    var profitPreTax = payout - ownCosts;
+    var tax = 0;
+    if (s.taxMode === "income") tax = s.taxRate * revenue;
+    else if (s.taxMode === "profit") tax = s.taxRate * Math.max(0, profitPreTax);
+
+    var profit = profitPreTax - tax;
+    var invested = s.cost + s.pack + s.intake;
+
+    return {
+      buyerPrice: buyerPrice, revenue: revenue, commission: commission,
+      acquiring: acquiring, logistics: logistics, adv: adv, tax: tax,
+      payout: payout, profit: profit,
+      margin: revenue > 0 ? profit / revenue : 0,
+      roi: invested > 0 ? profit / invested : 0
+    };
+  }
+
+  // Прибыль монотонно растёт с ценой — двоичный поиск нуля.
+  function breakeven(s) {
+    if (compute(s, 0).profit >= 0) return 0;
+    var lo = 0, hi = Math.max(s.price * 10, 100000);
+    if (compute(s, hi).profit < 0) return NaN;
+    for (var i = 0; i < 60; i++) {
+      var mid = (lo + hi) / 2;
+      if (compute(s, mid).profit < 0) lo = mid; else hi = mid;
+    }
+    return hi;
+  }
+
+  function row(label, value, cls, note) {
+    return "<tr><td>" + label + (note ? "<span class='row-note'>" + note + "</span>" : "") +
+      "</td><td class='num " + (cls || "") + "'>" + value + "</td></tr>";
+  }
+
+  function fillSlider(el) {
+    var min = parseFloat(el.min), max = parseFloat(el.max), v = parseFloat(el.value);
+    el.style.setProperty("--fill", ((v - min) / (max - min) * 100) + "%");
+  }
+
+  function render() {
+    var s = readState();
+    var r = compute(s, s.price);
+
+    $("sppVal").textContent = pct(s.spp * 100);
+    $("feeVal").textContent = pct(s.fee * 100);
+    $("acqVal").textContent = pct(s.acq * 100);
+    $("buyoutVal").textContent = pct(s.buyout * 100, 0);
+    $("drrVal").textContent = pct(s.drr * 100);
+    $("taxRateVal").textContent = pct(s.taxRate * 100);
+    ["spp","fee","acq","buyout","drr","taxRate"].forEach(function (id) { fillSlider(els[id] || $(id)); });
+
+    $("buyerPrice").textContent = rub(r.buyerPrice);
+    $("sppHint").innerHTML = s.sppPayer === "wb"
+      ? "Скидку компенсирует Wildberries — ваша выручка считается от полной цены карточки <b>" + rub(s.price) + "</b>."
+      : "Скидка за ваш счёт — выручка считается от цены после скидки <b>" + rub(r.buyerPrice) + "</b>.";
+    $("logEff").textContent = rub(r.logistics);
+
+    $("profit").textContent = (r.profit < 0 ? "−" : "") + rub(Math.abs(r.profit));
+    $("margin").textContent = pct(r.margin * 100);
+    $("roi").textContent = pct(r.roi * 100);
+    $("profitCard").classList.toggle("loss", r.profit < 0);
+
+    var taxRateField = $("taxRateField");
+    taxRateField.hidden = s.taxMode === "none";
+    $("taxHint").textContent = s.taxMode === "income"
+      ? "База — выручка продавца (до вычета комиссии WB)."
+      : "База — прибыль до налога; при убытке налог не начисляется.";
+
+    var html = "";
+    html += row("Цена в карточке", "+" + rub(s.price), "plus");
+    if (s.spp > 0) {
+      html += row("СПП " + pct(s.spp * 100, 1),
+        s.sppPayer === "wb" ? "0 ₽" : "−" + rub(s.price - r.buyerPrice),
+        s.sppPayer === "wb" ? "" : "minus",
+        s.sppPayer === "wb" ? "компенсирует WB, покупатель платит " + rub(r.buyerPrice) : "за счёт продавца");
+    }
+    html += row("Комиссия WB " + pct(s.fee * 100), "−" + rub(r.commission), "minus", "от выручки продавца " + rub(r.revenue));
+    html += row("Эквайринг " + pct(s.acq * 100), "−" + rub(r.acquiring), "minus", "от оплаты покупателя " + rub(r.buyerPrice));
+    html += row("Логистика", "−" + rub(r.logistics), "minus", "с учётом выкупа " + pct(s.buyout * 100, 0));
+    if (s.storage > 0) html += row("Хранение", "−" + rub(s.storage), "minus");
+    if (s.intake > 0) html += row("Приёмка", "−" + rub(s.intake), "minus");
+    html += row("<b>Выплата от WB</b>", rub(r.payout), r.payout < 0 ? "minus" : "");
+    html += row("Себестоимость", "−" + rub(s.cost), "minus");
+    if (s.pack > 0) html += row("Упаковка", "−" + rub(s.pack), "minus");
+    if (r.adv > 0) html += row("Реклама (ДРР " + pct(s.drr * 100) + ")", "−" + rub(r.adv), "minus", "от цены в карточке");
+    if (s.review > 0) html += row("Баллы за отзыв", "−" + rub(s.review), "minus");
+    if (s.taxMode !== "none") html += row("Налог " + pct(s.taxRate * 100), "−" + rub(r.tax), "minus",
+      s.taxMode === "income" ? "от выручки" : "от прибыли");
+    html += "<tr class='total'><td>Чистая прибыль</td><td class='num " + (r.profit < 0 ? "minus" : "plus") + "'>" +
+      (r.profit < 0 ? "−" : "+") + rub(Math.abs(r.profit)) + "</td></tr>";
+    $("brkTable").innerHTML = html;
+
+    var be = breakeven(s);
+    $("breakeven").textContent = isFinite(be) ? rub(be) : "—";
+
+    try {
+      var save = {};
+      Object.keys(els).forEach(function (k) { save[k] = els[k].value; });
+      save._sppPayer = sppPayer;
+      localStorage.setItem(STORE_KEY, JSON.stringify(save));
+    } catch (e) { /* приватный режим — не сохраняем */ }
+  }
+
+  // ---- события ----
+  Object.keys(els).forEach(function (k) {
+    els[k].addEventListener("input", render);
+    els[k].addEventListener("change", render);
+  });
+
+  var segBtns = $("sppPayer").querySelectorAll("button");
+  segBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      sppPayer = b.dataset.v;
+      segBtns.forEach(function (x) {
+        x.classList.toggle("on", x === b);
+        x.setAttribute("aria-checked", x === b ? "true" : "false");
+      });
+      render();
+    });
+  });
+
+  // ---- восстановление ----
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (saved) {
+      Object.keys(els).forEach(function (k) { if (saved[k] !== undefined) els[k].value = saved[k]; });
+      if (saved._sppPayer === "seller") segBtns[1].click();
+    }
+  } catch (e) { /* повреждённое хранилище — стартуем с дефолтов */ }
+
+  render();
+})();
+</script>
