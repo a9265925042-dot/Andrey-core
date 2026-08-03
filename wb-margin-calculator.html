@@ -400,12 +400,12 @@
           <div class="field-head"><label for="vat">НДС</label></div>
           <select id="vat">
             <option value="0">Без НДС</option>
-            <option value="5">5 % — УСН, без права вычета</option>
-            <option value="7">7 % — УСН, без права вычета</option>
-            <option value="10">10 % — льготная ставка</option>
-            <option value="22">22 % — общая ставка</option>
+            <option value="5">5 % — спецставка УСН, без вычетов</option>
+            <option value="7">7 % — спецставка УСН, без вычетов</option>
+            <option value="10">10 % — льготная (детские товары, продукты, лекарства)</option>
+            <option value="22">22 % — общая ставка (с 2026 года)</option>
           </select>
-          <div class="hint">НДС считается «изнутри» цены: выручка × ставка / (100 + ставка).</div>
+          <div class="hint" id="vatHint">НДС считается «изнутри» цены: выручка × ставка / (100 + ставка). На УСН НДС обязателен при доходе свыше 20 млн ₽/год: спецставки 5/7 % без вычетов или общие 22/10 % с правом вычета.</div>
         </div>
         <div class="field" id="vatDeductField" hidden>
           <div class="field-head"><label for="vatDeduct">Входной НДС к вычету</label></div>
@@ -592,7 +592,8 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     if (s.vatRate > 0 && (s.taxMode === "usn_income" || s.taxMode === "usn_profit" || s.taxMode === "osno")) {
       var v = s.vatRate / 100;
       vat = revenue * v / (1 + v);
-      if (s.taxMode === "osno" && s.vatDeduct) vat = Math.max(0, vat - s.cost * v / (1 + v));
+      // Вычет входного НДС доступен на общих ставках 10/22 % (ОСНО и УСН с общей ставкой), на спецставках 5/7 % — нет.
+      if (s.vatDeduct && (s.vatRate === 10 || s.vatRate === 22)) vat = Math.max(0, vat - s.cost * v / (1 + v));
     }
     var incomeBase = revenue - vat;
     var profitBase = Math.max(0, profitPreTax - vat);
@@ -679,9 +680,18 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     }
 
     $("taxRateField").hidden = s.taxMode === "none";
-    $("vatField").hidden = !(s.taxMode === "usn_income" || s.taxMode === "usn_profit" || s.taxMode === "osno");
-    $("vatDeductField").hidden = !(s.taxMode === "osno" && s.vatRate > 0);
+    var vatVisible = s.taxMode === "usn_income" || s.taxMode === "usn_profit" || s.taxMode === "osno";
+    $("vatField").hidden = !vatVisible;
+    $("vatDeductField").hidden = !(vatVisible && (s.vatRate === 10 || s.vatRate === 22));
     $("taxHint").textContent = TAX_HINTS[s.taxMode] || "";
+    var vatBase = "НДС считается «изнутри» цены: выручка × ставка / (100 + ставка). На УСН НДС обязателен при доходе свыше 20 млн ₽/год: спецставки 5/7 % без вычетов или общие 22/10 % с правом вычета.";
+    if (vatVisible && selectedCat) {
+      var sv = suggestVat(selectedCat[0]);
+      vatBase = (sv === 10
+        ? "«" + selectedCat[0] + "» — детские товары / школьные принадлежности, льготная ставка <b>10 %</b>."
+        : "«" + selectedCat[0] + "» — под льготный перечень не похоже, стандартная ставка <b>22 %</b> (продовольственные и медицинские товары проверьте отдельно).") + " " + vatBase;
+    }
+    $("vatHint").innerHTML = vatBase;
 
     var html = "";
     html += row("Цена в карточке", "+" + rub(s.price), "plus");
@@ -919,7 +929,7 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   els.taxMode.addEventListener("change", function () {
     var d = TAX_DEFAULTS[els.taxMode.value] || TAX_DEFAULTS.none;
     els.taxRate.value = d.rate;
-    els.vat.value = d.vat;
+    els.vat.value = d.vat > 0 && selectedCat ? suggestVat(selectedCat[0]) : d.vat;
     render();
   });
 
@@ -929,6 +939,26 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
   } catch (e) { /* старые браузеры */ }
   new MutationObserver(function () { render(); })
     .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // Льготный перечень НДС 10 % (детские товары и школьно-письменные принадлежности,
+  // пост. Правительства № 908): подсказка по названию предмета WB.
+  var VAT10_PATTERNS = [
+    /пластилин/, /масса для лепки/, /тесто для лепки/,
+    /(^|[^а-яё])пенал/, /тетрад/, /(^|[^а-яё])дневник/, /альбом.* для (рисования|черчения)/,
+    /обложк/, /сч[её]тные палочки/, /касс[аы] цифр/,
+    /игрушк/, /сортер/, /пирамидк/, /погремушк/, /кукл/, /конструктор/, /(^|[^а-яё])мозаик/, /неваляшк/, /(^|[^а-яё])юл[аы]/,
+    /подгузники/, /пел[её]нк/, /(^|[^а-яё])соск/, /пустышк/, /бутылочки для кормления/,
+    /детск\S* горшк|горшки детск/, /ванночки детск/,
+    /автокресл/, /удерживающие устройств/, /^коляски|санки-коляски|инвалидные коляски/
+  ];
+  // Похожие названия вне льготного перечня: зоотовары, товары для взрослых, цветочные горшки и т.п.
+  var VAT10_EXCLUDE = /для (собак|кошек|животных|птиц|грызунов|рыб|взрослых|цветов|книг)|цветочн|садов|рассад|секс|зажим|алмазн|автодокумент|переплет/;
+  function suggestVat(name) {
+    var n = (name || "").toLowerCase();
+    if (VAT10_EXCLUDE.test(n)) return 22;
+    for (var i = 0; i < VAT10_PATTERNS.length; i++) if (VAT10_PATTERNS[i].test(n)) return 10;
+    return 22;
+  }
 
   // ---- категория → комиссия ----
   var catInput = $("cat"), catList = $("catList"), catClear = $("catClear");
@@ -976,6 +1006,10 @@ var WB_CATEGORIES = [["3D очки",20.29],["3D-принтеры",22.74],["3D-р
     selectedCat = cat;
     catInput.value = cat[0];
     els.fee.value = cat[1];
+    // Актуализируем ставку НДС по льготному перечню — только если выбрана общая ставка (10/22),
+    // спецставки УСН 5/7 % и «без НДС» не трогаем.
+    var cur = parseFloat(els.vat.value);
+    if (cur === 10 || cur === 22) els.vat.value = suggestVat(cat[0]);
     catClear.hidden = false;
     closeCatList();
     render();
