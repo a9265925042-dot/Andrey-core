@@ -458,6 +458,50 @@ def report_cmd(
 
 
 # ---------------------------------------------------------------------------
+# dashboard
+# ---------------------------------------------------------------------------
+
+
+@app.command("dashboard")
+def dashboard_cmd(
+    subject_id: int | None = typer.Option(None, "--subject-id"),
+    subject_name: str = typer.Option("", "--subject-name"),
+    days: int = typer.Option(30, "--days", min=1),
+    pool_json: Path | None = typer.Option(  # noqa: B008
+        None, "--pool-json", help="Pool JSON для разбивки по слоям discovery."
+    ),
+    out: Path = typer.Option(  # noqa: B008
+        Path("data/dashboard.html"), "--out"
+    ),
+) -> None:
+    """Self-contained HTML дашборд из локальной БД (KPI, тренд, тиры, ключи, склады)."""
+
+    async def _run() -> None:
+        from wb_pool.dashboard import gather_dashboard_data, render_dashboard_html
+
+        settings = get_settings()
+        engine = create_engine(settings.database_url)
+        try:
+            data = await gather_dashboard_data(
+                engine,
+                subject_id=subject_id,
+                subject_name=subject_name,
+                days=days,
+                pool_json_path=pool_json,
+            )
+        finally:
+            await engine.dispose()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_dashboard_html(data), encoding="utf-8")
+        _console.print(
+            f"[green]OK[/green]: dashboard → {out} "
+            f"(pool={data.pool_size} nm, groups={data.groups_count})"
+        )
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
 # run-category (оркестратор — 8 фаз, см. docs/08-orchestrator.md)
 # ---------------------------------------------------------------------------
 
